@@ -28,18 +28,14 @@ local CHAR_ROOT_HEIGHT = 3
 -- Studio Play mode has a serverplaceid=0 restriction that blocks most external assets.
 -- ONLY IDs pre-cached in Roblox Studio's local bundle load reliably here.
 -- Verified working in Studio (tested ✅):
+-- These 4 are confirmed to load from Studio's local asset cache.
+-- All others fail with serverplaceid=0 in Studio Play mode.
+-- To unlock 50+ dances: stream the published Roblox CLIENT (not Studio).
 local DANCE_ANIMS = {
-    "507771019",  -- Robot        ✅
-    "507776043",  -- Dance 2      ✅
-    "507770453",  -- Breakdance   ✅
-    "507771955",  -- Shufflin     ✅
-    "507776361",  -- Tentacle     (may work — no permission block, just serverplaceid)
-    "507772104",  -- Tread        (may work — no permission block, just serverplaceid)
-    "507768875",  -- Laugh        (may work)
-    "507769720",  -- Cheer        (may work)
-    -- NOTE: To unlock 50+ dances, stream the published Roblox CLIENT window
-    -- instead of Studio. The Roblox client does not have the serverplaceid=0
-    -- restriction and all catalog animations will load freely.
+    "507771019",  -- Robot      ✅ confirmed
+    "507776043",  -- Dance 2    ✅ confirmed
+    "507770453",  -- Breakdance ✅ confirmed
+    "507771955",  -- Shufflin   ✅ confirmed
 }
 
 -- ── Setup ─────────────────────────────────────────────────
