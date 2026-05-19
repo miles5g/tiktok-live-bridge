@@ -193,6 +193,20 @@ local function spawnCharacter(username)
     print("[Spawn] " .. username .. " on the floor! (" .. (slot.occupied and "slot OK" or "?") .. ")")
 end
 
+-- ── Startup Reset ─────────────────────────────────────────
+-- Tell the server this is a fresh session so stale activeOnScreen is cleared.
+-- This fires every time you hit Play in Studio or the game server starts.
+
+print("[Server] SpawnScript starting — sending reset signal...")
+pcall(function()
+    HttpService:PostAsync(
+        SERVER_URL .. "/api/reset",
+        "{}",
+        Enum.HttpContentType.ApplicationJson
+    )
+end)
+print("[Server] Reset sent. Starting poll loop.")
+
 -- ── Main Poll Loop ─────────────────────────────────────────
 
 print("[Server] SpawnScript running — polling " .. SERVER_URL)

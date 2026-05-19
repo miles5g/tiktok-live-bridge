@@ -150,6 +150,14 @@ app.post('/api/queue/done', (req, res) => {
     return res.json({ status: 'success' });
 });
 
+// POST /api/reset — called by SpawnScript on startup to wipe stale session state
+app.post('/api/reset', (req, res) => {
+    const prev = activeOnScreen.length;
+    activeOnScreen = [];
+    console.log(`[Reset] Roblox session started — cleared ${prev} stale active user(s).`);
+    return res.json({ status: 'ok' });
+});
+
 // POST /api/test/inject — manually push a username into the queue (testing only)
 app.post('/api/test/inject', (req, res) => {
     const { username } = req.body;
