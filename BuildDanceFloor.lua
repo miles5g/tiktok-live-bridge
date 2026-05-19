@@ -121,12 +121,12 @@ local LW, LH = 0.14, 0.08
 -- Column dividers (run along Z axis, between X columns)
 for col = 0, 5 do
     local lx = (col - 2) * 5 - 2.5
-    neon(Vector3.new(LW, LH, 26), Vector3.new(lx, FLOOR_TOP + LH / 2, 7.5), C_PINK)
+    neon(Vector3.new(LW, LH, 20), Vector3.new(lx, FLOOR_TOP + LH / 2, 7.5), C_PINK)
 end
 -- Row dividers (run along X axis, between Z rows)
 for row = 0, 4 do
     local lz = row * 5 - 2.5
-    neon(Vector3.new(30, LH, LW), Vector3.new(0, FLOOR_TOP + LH / 2, lz), C_PINK)
+    neon(Vector3.new(25, LH, LW), Vector3.new(0, FLOOR_TOP + LH / 2, lz), C_PINK)
 end
 
 -- ── 5. SpawnLocation anchor ───────────────────────────────
