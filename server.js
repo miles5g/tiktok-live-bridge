@@ -124,6 +124,24 @@ app.post('/api/queue/done', (req, res) => {
     return res.json({ status: 'success' });
 });
 
+// POST /api/test/inject — manually push a username into the queue (testing only)
+app.post('/api/test/inject', (req, res) => {
+    const { username } = req.body;
+    if (!username) return res.status(400).json({ error: 'Missing username' });
+
+    if (!isValidRobloxUsername(username)) {
+        return res.status(400).json({ error: 'Invalid Roblox username format' });
+    }
+
+    if (isUserInSystem(username)) {
+        return res.json({ status: 'already_in_system', username });
+    }
+
+    regularQueue.push(username);
+    console.log(`[Test] Manually injected: ${username} (queue: ${regularQueue.length})`);
+    return res.json({ status: 'injected', username });
+});
+
 // GET /api/status — quick health check you can open in a browser
 app.get('/api/status', (req, res) => {
     res.json({
