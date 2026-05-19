@@ -92,10 +92,17 @@ end
 
 local focusEvent = ReplicatedStorage:WaitForChild("FocusOnCharacter", 30)
 
-focusEvent.OnClientEvent:Connect(function(rootPart)
-    print("[Camera] FocusOnCharacter event received! rootPart = " .. tostring(rootPart))
-    if not rootPart or not rootPart.Parent then
-        warn("[Camera] rootPart is nil or has no parent — skipping tween")
+focusEvent.OnClientEvent:Connect(function(model)
+    print("[Camera] FocusOnCharacter received for model: " .. tostring(model))
+    if not model or not model.Parent then
+        warn("[Camera] model is nil or has no parent — skipping")
+        return
+    end
+
+    -- Wait briefly for the HumanoidRootPart to exist after replication
+    local rootPart = model:WaitForChild("HumanoidRootPart", 5)
+    if not rootPart then
+        warn("[Camera] HumanoidRootPart not found on: " .. model.Name)
         return
     end
 
@@ -112,7 +119,6 @@ focusEvent.OnClientEvent:Connect(function(rootPart)
     rootPart.AncestryChanged:Connect(function()
         if not rootPart.Parent then
             removePart(rootPart)
-            -- If we lost our current target, jump to whoever is current in cycle
             if currentTarget == rootPart and #activeParts > 0 then
                 local safeIndex = math.clamp(cycleIndex, 1, #activeParts)
                 tweenTo(activeParts[safeIndex])
@@ -125,7 +131,7 @@ focusEvent.OnClientEvent:Connect(function(rootPart)
     tweenTo(rootPart)
     lastCycleTime = tick()
 
-    print("[Camera] Tweening to: " .. (rootPart.Parent and rootPart.Parent.Name or "?")
+    print("[Camera] Tweening to: " .. model.Name
         .. " | Active on floor: " .. #activeParts
         .. " | CameraType: " .. tostring(camera.CameraType))
 end)

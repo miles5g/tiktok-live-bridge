@@ -177,8 +177,10 @@ local function spawnCharacter(username)
     local animId = getRandomAnimId()
     animateEvent:FireAllClients(model, animId)
 
-    -- 6. Tell the camera to swing to this character
-    focusEvent:FireAllClients(model.PrimaryPart)
+    -- 6. Tell the camera to swing to this character.
+    -- Pass the MODEL (not PrimaryPart) — PrimaryPart can be nil immediately after spawn.
+    -- CameraScript will find HumanoidRootPart itself.
+    focusEvent:FireAllClients(model)
 
     -- Safety fallback: Debris auto-removes if the task.delay ever hangs
     Debris:AddItem(model, DANCE_DURATION + 10)
