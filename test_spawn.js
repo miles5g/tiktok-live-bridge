@@ -19,7 +19,8 @@ const http = require('http');
 const TEST_USERS = [
     'Roblox',
     'builderman',
-    'milkywizard',   // your own account — spawns your avatar
+    'milkywizard',
+    'mcjbomb',
 ];
 
 // ── Helper: POST a username into the queue ─────────────────
@@ -94,8 +95,8 @@ async function runTests() {
 
     for (const user of TEST_USERS) {
         await injectUser(user);
-        // Small delay between injections so Roblox has time to process each one
-        await new Promise(r => setTimeout(r, 3000));
+        // 10 second gap between each spawn so you can watch each one land
+        await new Promise(r => setTimeout(r, 10000));
     }
 
     console.log('\n[Test] All users injected. Checking status...');
