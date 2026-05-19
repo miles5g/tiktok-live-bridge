@@ -1,11 +1,16 @@
 -- ============================================================
 -- CameraScript  |  StarterPlayerScripts > LocalScript
--- Portrait-optimized (9:16) cinematic camera for TikTok Live.
--- Swings to newest spawn; crowd visible below in frame.
+-- Portrait-optimized cinematic camera for TikTok 9:16.
+--
+-- Behavior:
+--   1. New character spawns → camera immediately tweens to them
+--   2. After CYCLE_INTERVAL seconds → moves to next character
+--   3. Cycles from newest → progressively older → oldest
+--   4. After oldest is featured → wraps back to newest on floor
+--   5. When characters despawn, they're removed from the cycle
 -- ============================================================
 -- WHERE TO PUT THIS:
---   Roblox Studio → Explorer → StarterPlayer → StarterPlayerScripts
---   Right-click → Insert Object → LocalScript → paste this in
+--   Roblox Studio → StarterPlayer → StarterPlayerScripts → LocalScript
 -- ============================================================
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -15,49 +20,65 @@ local RunService        = game:GetService("RunService")
 local camera = workspace.CurrentCamera
 camera.CameraType = Enum.CameraType.Scriptable
 
--- ── Portrait Framing Config (optimized for TikTok 9:16) ───
---
--- TikTok is viewed almost entirely on mobile in portrait.
--- The key difference vs. landscape:
---   - LESS side offset (portrait is narrow — side room is wasted)
---   - MORE height (we have vertical space, use it to show the crowd below)
---   - Camera pulls back further so the grid fills the lower frame
---   - Focus point aims slightly above chest so head isn't cropped
---
-local CAM_DISTANCE  = 28   -- studs behind target (pulls back = more crowd visible)
-local CAM_HEIGHT    = 14   -- studs above floor (tall portrait = show crowd below)
-local CAM_SIDE      = 2    -- minimal side offset (portrait frame is narrow)
-local FOCUS_HEIGHT  = 3    -- studs above target root to aim at (keeps head in frame)
+-- ── Config ────────────────────────────────────────────────
 
--- How fast the camera swings to a new character (seconds)
-local TWEEN_DURATION = 2.2
-
--- Gentle follow drift after tween lands (0 = instant, higher = slower)
-local FOLLOW_ALPHA  = 0.04
+local CAM_DISTANCE     = 28    -- studs behind target
+local CAM_HEIGHT       = 14    -- studs above floor
+local CAM_SIDE         = 2     -- slight 3/4 angle
+local FOCUS_HEIGHT     = 3     -- aim at chest height
+local TWEEN_DURATION   = 2.2   -- seconds per camera swing
+local FOLLOW_ALPHA     = 0.04  -- drift smoothness while locked
+local CYCLE_INTERVAL   = 5     -- seconds before moving to next character
 
 -- ── State ─────────────────────────────────────────────────
 
+-- Ordered list: [1] = oldest on floor, [#] = newest
+-- cycleIndex counts DOWN from newest to oldest, then wraps
+local activeParts  = {}
+local cycleIndex   = 1
 local currentTarget = nil
-local isTweening    = false
+local isTweening   = false
+local lastCycleTime = 0
 
--- ── Camera Position Calculator ────────────────────────────
---
--- Camera sits high and far back so:
---   - Newest character: upper-center of frame (hero position)
---   - Crowd grid: visible in lower portion of the tall portrait frame
---   - Slight side offset: gives a natural 3/4 angle, not a dead-on shot
---
+-- ── Helpers ───────────────────────────────────────────────
+
 local function getTargetCFrame(rootPart)
     local pos   = rootPart.Position
     local focus = pos + Vector3.new(0, FOCUS_HEIGHT, 0)
-
-    local camPos = pos + Vector3.new(
-        CAM_SIDE,
-        CAM_HEIGHT,
-        CAM_DISTANCE
-    )
-
+    local camPos = pos + Vector3.new(CAM_SIDE, CAM_HEIGHT, CAM_DISTANCE)
     return CFrame.lookAt(camPos, focus)
+end
+
+local function tweenTo(rootPart)
+    if not rootPart or not rootPart.Parent then return end
+    currentTarget = rootPart
+    isTweening    = true
+
+    local goal = getTargetCFrame(rootPart)
+    local info  = TweenInfo.new(
+        TWEEN_DURATION,
+        Enum.EasingStyle.Sine,
+        Enum.EasingDirection.InOut
+    )
+    local tween = TweenService:Create(camera, info, { CFrame = goal })
+    tween.Completed:Connect(function() isTweening = false end)
+    tween:Play()
+end
+
+-- Remove a PrimaryPart from the active list and adjust cycleIndex
+local function removePart(target)
+    for i, p in ipairs(activeParts) do
+        if p == target then
+            table.remove(activeParts, i)
+            -- Keep cycleIndex in bounds
+            if #activeParts == 0 then
+                cycleIndex = 1
+            else
+                cycleIndex = math.clamp(cycleIndex, 1, #activeParts)
+            end
+            break
+        end
+    end
 end
 
 -- ── Event: new character spawned ──────────────────────────
@@ -67,43 +88,83 @@ local focusEvent = ReplicatedStorage:WaitForChild("FocusOnCharacter", 30)
 focusEvent.OnClientEvent:Connect(function(rootPart)
     if not rootPart or not rootPart.Parent then return end
 
-    currentTarget = rootPart
-    isTweening    = true
+    -- Avoid duplicates
+    for _, p in ipairs(activeParts) do
+        if p == rootPart then return end
+    end
 
-    local goal = getTargetCFrame(rootPart)
-    local tweenInf = TweenInfo.new(
-        TWEEN_DURATION,
-        Enum.EasingStyle.Sine,
-        Enum.EasingDirection.InOut
-    )
-    local tween = TweenService:Create(camera, tweenInf, { CFrame = goal })
+    -- Insert at end = newest
+    table.insert(activeParts, rootPart)
+    cycleIndex = #activeParts  -- feature this new character first
 
-    tween.Completed:Connect(function()
-        isTweening = false
+    -- Auto-remove when character despawns
+    rootPart.AncestryChanged:Connect(function()
+        if not rootPart.Parent then
+            removePart(rootPart)
+            -- If we lost our current target, jump to whoever is current in cycle
+            if currentTarget == rootPart and #activeParts > 0 then
+                local safeIndex = math.clamp(cycleIndex, 1, #activeParts)
+                tweenTo(activeParts[safeIndex])
+                lastCycleTime = tick()
+            end
+        end
     end)
 
-    tween:Play()
+    -- Swing to new character and reset cycle timer
+    tweenTo(rootPart)
+    lastCycleTime = tick()
+
+    print("[Camera] New character: " .. (rootPart.Parent and rootPart.Parent.Name or "?")
+        .. " | Active on floor: " .. #activeParts)
 end)
 
--- ── RenderStepped: smooth follow drift ────────────────────
--- After the tween settles, the camera gently tracks the target
--- so it stays locked even if the character bobs or slides.
+-- ── Cycle loop ────────────────────────────────────────────
+-- Runs every frame; advances to next character when timer expires.
+
+RunService.Heartbeat:Connect(function()
+    -- Prune any destroyed parts
+    for i = #activeParts, 1, -1 do
+        if not activeParts[i] or not activeParts[i].Parent then
+            table.remove(activeParts, i)
+        end
+    end
+
+    if #activeParts == 0 then return end
+
+    -- Clamp cycleIndex
+    cycleIndex = math.clamp(cycleIndex, 1, #activeParts)
+
+    -- Time to move to next character?
+    if not isTweening and (tick() - lastCycleTime) >= CYCLE_INTERVAL then
+        -- Count DOWN: newest → progressively older → oldest → wrap to newest
+        cycleIndex = cycleIndex - 1
+        if cycleIndex < 1 then
+            cycleIndex = #activeParts  -- wrap back to newest
+        end
+
+        local target = activeParts[cycleIndex]
+        if target and target.Parent then
+            tweenTo(target)
+            lastCycleTime = tick()
+            print("[Camera] Cycling to: " .. (target.Parent and target.Parent.Name or "?")
+                .. " [" .. cycleIndex .. "/" .. #activeParts .. "]")
+        end
+    end
+end)
+
+-- ── Drift follow while locked on target ───────────────────
 
 RunService.RenderStepped:Connect(function()
     if isTweening then return end
     if not currentTarget or not currentTarget.Parent then return end
-
     local desired = getTargetCFrame(currentTarget)
     camera.CFrame  = camera.CFrame:Lerp(desired, FOLLOW_ALPHA)
 end)
 
--- ── Default idle position (before any viewer spawns) ──────
--- Camera sits behind the grid looking at the stage center.
--- Matches the same angle as the follow logic so the first
--- tween looks seamless.
-local STAGE_CENTER = Vector3.new(0, 5, 7.5)  -- center of the 5×4 grid
+-- ── Default idle position (empty floor) ───────────────────
+
+local STAGE_CENTER = Vector3.new(0, 5, 7.5)
 local idleCamPos   = STAGE_CENTER + Vector3.new(CAM_SIDE, CAM_HEIGHT, CAM_DISTANCE)
 camera.CFrame      = CFrame.lookAt(idleCamPos, STAGE_CENTER)
 
--- ── Roblox Studio Setup Reminder (printed on Play) ────────
-print("[Camera] Portrait mode active — optimized for TikTok 9:16")
+print("[Camera] Ready — cycles every " .. CYCLE_INTERVAL .. "s | Portrait 9:16")
