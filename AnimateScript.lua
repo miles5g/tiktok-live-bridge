@@ -21,10 +21,20 @@ local DANCE_ANIMS = {
 
 local LOOPS_PER_ANIM = 1   -- how many loops before switching to next dance
 
-local animateEvent = ReplicatedStorage:WaitForChild("AnimateCharacter", 30)
+local function waitForRemote(name, timeoutSec)
+    local deadline = tick() + (timeoutSec or 60)
+    while tick() < deadline do
+        local ev = ReplicatedStorage:FindFirstChild(name)
+        if ev then return ev end
+        task.wait(0.25)
+    end
+    return nil
+end
+
+local animateEvent = waitForRemote("AnimateCharacter", 60)
 
 if not animateEvent then
-    warn("[AnimateScript] AnimateCharacter RemoteEvent not found — is SpawnScript running?")
+    warn("[AnimateScript] AnimateCharacter not found — paste SpawnScript.lua into ServerScriptService (Script)")
     return
 end
 

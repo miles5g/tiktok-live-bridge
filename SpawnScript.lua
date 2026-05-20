@@ -5,7 +5,15 @@
 -- WHERE TO PUT THIS:
 --   Roblox Studio → Explorer → ServerScriptService
 --   Right-click → Insert Object → Script → paste this in
+--
+-- ⚠️  This is the SERVER script. Do NOT paste CameraScript.lua here.
+--     CameraScript uses RenderStepped and will crash if run on the server.
 -- ============================================================
+
+local RunService        = game:GetService("RunService")
+if RunService:IsClient() then
+    error("[SpawnScript] Wrong place — use ServerScriptService > Script, not a LocalScript.")
+end
 
 local HttpService       = game:GetService("HttpService")
 local Players           = game:GetService("Players")
@@ -64,6 +72,8 @@ local DANCE_ANIMS = {
 
 -- ── Setup ─────────────────────────────────────────────────
 
+print("[Server] SpawnScript loading — creating RemoteEvents…")
+
 -- RemoteEvent: camera follows newest character
 local focusEvent = Instance.new("RemoteEvent")
 focusEvent.Name   = "FocusOnCharacter"
@@ -93,9 +103,104 @@ local cameraFocusEvent = Instance.new("RemoteEvent")
 cameraFocusEvent.Name   = "CameraFocus"
 cameraFocusEvent.Parent = ReplicatedStorage
 
-local cameraFocusName = ""  -- username the camera is currently showing
-cameraFocusEvent.OnServerEvent:Connect(function(_, username)
+print("[Server] RemoteEvents ready (AnimateCharacter, FocusOnCharacter, …)")
+
+-- Row letters (must match CameraScript): A=back, D=front (closest to camera).
+local ROW_LABELS = { "A", "B", "C", "D" }
+
+local cameraFocusName  = ""
+local currentCameraRow = nil   -- 0=A … 3=D; which row the camera is filming
+local spawnedNPCs      = {}
+
+local function rowLabel(row)
+    if typeof(row) == "number" and row >= 0 and row < #ROW_LABELS then
+        return ROW_LABELS[row + 1]
+    end
+    return "?"
+end
+
+local function isInFrontOfCameraRow(dancerRow, cameraRow)
+    return typeof(dancerRow) == "number" and typeof(cameraRow) == "number"
+        and dancerRow > cameraRow
+end
+
+local function setNPCHidden(model, hide)
+    if not model or not model.Parent then return end
+    for _, desc in ipairs(model:GetDescendants()) do
+        if desc:IsA("BasePart") and desc.Name ~= "HumanoidRootPart" then
+            desc.Transparency = hide and 1 or 0
+        elseif desc:IsA("Decal") or desc:IsA("Texture") then
+            desc.Transparency = hide and 1 or 0
+        elseif desc:IsA("SurfaceGui") then
+            desc.Enabled = not hide
+        end
+    end
+end
+
+-- Camera on row A → hide every dancer on rows B, C, D (closer to camera).
+local function applyRowVisibility(cameraRow)
+    currentCameraRow = cameraRow
+    for _, model in ipairs(spawnedNPCs) do
+        if model and model.Parent then
+            local dancerRow = model:GetAttribute("SpawnRow")
+            if cameraRow == nil then
+                setNPCHidden(model, false)
+            elseif isInFrontOfCameraRow(dancerRow, cameraRow) then
+                setNPCHidden(model, true)
+            else
+                setNPCHidden(model, false)
+            end
+        end
+    end
+end
+
+local function trackNPC(model)
+    table.insert(spawnedNPCs, model)
+    model.DescendantAdded:Connect(function(desc)
+        if not desc:IsA("BasePart") then return end
+        if desc.Name == "HumanoidRootPart" then return end
+        if currentCameraRow ~= nil then
+            local dancerRow = model:GetAttribute("SpawnRow")
+            if isInFrontOfCameraRow(dancerRow, currentCameraRow) then
+                desc.Transparency = 1
+            end
+        end
+    end)
+end
+
+local function untrackNPC(model)
+    for i, m in ipairs(spawnedNPCs) do
+        if m == model then
+            table.remove(spawnedNPCs, i)
+            break
+        end
+    end
+end
+
+cameraFocusEvent.OnServerEvent:Connect(function(_, username, cameraRow)
     cameraFocusName = username or ""
+    if typeof(cameraRow) == "number" and cameraRow >= 0 then
+        applyRowVisibility(cameraRow)
+        print("[Fade] Server: camera row " .. rowLabel(cameraRow)
+            .. " — hiding rows in front of " .. rowLabel(cameraRow))
+    elseif username == "" or cameraRow == nil or cameraRow < 0 then
+        applyRowVisibility(nil)
+    else
+        local model = workspace:FindFirstChild(username)
+        if model then
+            local row = model:GetAttribute("SpawnRow")
+            if typeof(row) == "number" then applyRowVisibility(row) end
+        end
+    end
+end)
+
+task.spawn(function()
+    while true do
+        task.wait(0.5)
+        if currentCameraRow ~= nil then
+            applyRowVisibility(currentCameraRow)
+        end
+    end
 end)
 
 -- RemoteEvent: CameraScript fires this (client → server) once its tween
@@ -169,7 +274,7 @@ local function buildSpawnSlots()
         table.insert(slots, {
             position = spawnAnchor.Position + offset,
             occupied = false,
-            row      = cell.row,   -- 0 = back, higher = closer to camera
+            row      = cell.row,   -- 0=A (back) … 3=D (front, near camera)
         })
     end
     return slots
@@ -226,6 +331,7 @@ end
 
 local function hardDestroy(model, slot)
     removeFromRecent(model)
+    untrackNPC(model)
     -- Notify clients BEFORE destroying so CameraScript drops this character
     -- from activeParts immediately — no waiting for replication lag.
     pcall(function() despawnEvent:FireAllClients(model.Name) end)
@@ -341,7 +447,9 @@ local function spawnCharacter(username)
     -- Character is committed to the floor — release the spawn lock
     spawningNow[username] = nil
     model.Name = username
-    model:SetAttribute("SpawnRow", slot.row)  -- used by CameraScript for row-based fading
+    model:SetAttribute("SpawnRow", slot.row)
+    model:SetAttribute("SpawnRowLetter", ROW_LABELS[slot.row + 1])
+    trackNPC(model)
     -- Ensure PrimaryPart is set (CreateHumanoidModelFromDescription should do this,
     -- but we guard against edge cases)
     if not model.PrimaryPart then
@@ -368,11 +476,11 @@ local function spawnCharacter(username)
             root.Anchored = false  -- re-enable physics after landing
             -- Fire camera focus AFTER landing so the camera isn't
             -- aimed at the sky while the character is mid-drop.
-            focusEvent:FireAllClients(model)
+            focusEvent:FireAllClients(model, slot.row)
         end)
     else
         -- No root found — fire focus immediately as fallback
-        focusEvent:FireAllClients(model)
+        focusEvent:FireAllClients(model, slot.row)
     end
 
     -- Spawn effects are triggered by CameraScript AFTER the camera tween
