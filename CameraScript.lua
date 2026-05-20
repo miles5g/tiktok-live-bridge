@@ -102,7 +102,7 @@ local function updateFades(focusRoot)
 
             if root == focusRoot then
                 setModelFade(model, 0)                    -- focused char: always visible
-            elseif focusRow and modelRow and modelRow < focusRow then
+            elseif focusRow and modelRow and modelRow > focusRow then
                 setModelFade(model, FADE_ALPHA)           -- closer to camera than focus: fade
             else
                 setModelFade(model, 0)                    -- same row or behind: visible
@@ -281,7 +281,7 @@ end)
 -- callbacks and fixes fades after cycle transitions.
 task.spawn(function()
     while true do
-        task.wait(1)
+        task.wait(0.3)
         if not isTweening and currentTarget and currentTarget.Parent then
             updateFades(currentTarget)
         end
@@ -317,20 +317,10 @@ task.spawn(function()
                 updateFades(currentTarget)
             end
             pcall(function() cameraReadyEvent:FireServer() end)
-            -- Immediately move to a random different character so the camera
-            -- doesn't appear frozen at one spot while waiting for the cycle timer.
-            if #activeParts > 1 and not queueHasItems then
-                local nextIndex = cycleIndex
-                repeat nextIndex = math.random(1, #activeParts)
-                until nextIndex ~= cycleIndex
-                cycleIndex = nextIndex
-                local target = activeParts[cycleIndex]
-                if target and target.Parent then
-                    tweenTo(target)
-                    lastCycleTime = tick()
-                    print("[Camera] Timeout-recover → " .. (target.Parent and target.Parent.Name or "?"))
-                end
-            end
+            -- Let the cycle loop pick the next character naturally.
+            -- (Previously called tweenTo here which caused clearAllFades
+            -- to fire immediately, wiping fades before the keeper ran.)
+            lastCycleTime = 0  -- expire the timer so cycle fires next iteration
         end
 
         if not isTweening and (tick() - lastCycleTime) >= CYCLE_INTERVAL then

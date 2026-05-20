@@ -360,7 +360,7 @@ local function spawnCharacter(username)
         root.Anchored = true
         local dropTween = TweenService:Create(
             root,
-            TweenInfo.new(0.85, Enum.EasingStyle.Bounce, Enum.EasingDirection.Out),
+            TweenInfo.new(0.6, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
             { CFrame = finalCFrame }
         )
         dropTween:Play()

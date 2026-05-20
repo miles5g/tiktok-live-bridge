@@ -50,6 +50,18 @@ live_roblox/
 
 ---
 
+## Key Features
+
+- **Sky-drop spawn** — new characters fall from above onto their tile (smooth Quad ease, 0.6s)
+- **Checkerboard fill** — first 10 characters spread across the whole floor before gaps fill in
+- **Row-based transparency** — rows closer to camera fade out when camera focuses on a back row
+- **Featured rotation** — 30 famous Roblox accounts cycle in every 60s when viewer queue is empty
+- **Camera gate** — new characters only spawn after the camera has fully landed on the previous one
+- **Fade keeper** — transparency re-applies every 0.3s while camera is settled (bulletproof)
+- **VIP queue** — gift senders skip the line automatically
+
+---
+
 ## Every-Stream Startup (3 steps)
 
 ### 1. Run the launcher script
