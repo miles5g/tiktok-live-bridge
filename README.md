@@ -34,7 +34,7 @@ TikTok Live Chat  →  Node.js Queue  →  ngrok Tunnel  →  Roblox Client  →
 ## Project structure
 
 ```
-live_roblox/
+tiktok-live-bridge/
 ├── server.js              # TikTok listener + REST API
 ├── start_stream.ps1       # One-click launcher
 ├── SpawnScript.lua        # ServerScriptService
