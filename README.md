@@ -1,4 +1,4 @@
-# TikTok Live → Roblox Dance Floor
+# TikTok Live Bridge
 
 > **Autonomous live-stream engine:** viewers type a Roblox username in TikTok chat → their avatar spawns on a neon dance floor → camera cycles → gift-senders skip the queue.
 
